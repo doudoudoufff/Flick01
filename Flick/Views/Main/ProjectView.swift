@@ -17,7 +17,7 @@ struct ProjectView: View {
     @State private var selectedProject: Project?
     @State private var projects: [Project] = [
         Project(
-            name: "蒙牛 TV",
+            name: "蒙牛 TVC",
             startDate: Date(),
             director: "王五",
             creator: "赵六",
