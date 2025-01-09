@@ -12,7 +12,7 @@ struct OverviewView: View {
     @State private var selectedDate = Date()
     @State private var todos: [TodoItem] = [
         TodoItem(
-            title: "前期筹备",
+            title: "期筹备",
             deadline: Date(),
             assignee: "张三",
             status: "进行中"
