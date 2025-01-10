@@ -10,6 +10,7 @@ struct TodoItem: Identifiable {
 
 struct OverviewView: View {
     @State private var selectedDate = Date()
+    @State private var isCalendarExpanded = true
     @State private var todos: [TodoItem] = [
         TodoItem(
             title: "期筹备",
@@ -30,39 +31,68 @@ struct OverviewView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 // 当前日期显示
-                Text(dateFormatter.string(from: selectedDate))
-                    .font(.system(size: 32, weight: .bold))
-                    .padding(.horizontal)
-                
-                Text("Jan 2025")
-                    .font(.title2)
-                    .foregroundColor(.secondary)
-                    .padding(.horizontal)
-                
-                // 日历网格
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 7), spacing: 8) {
-                    // 星期标题
-                    ForEach(["日", "一", "二", "三", "四", "五", "六"], id: \.self) { weekday in
-                        Text(weekday)
-                            .font(.caption)
+                HStack {
+                    VStack(alignment: .leading) {
+                        Text(dateFormatter.string(from: selectedDate))
+                            .font(.system(size: 32, weight: .bold))
+                        
+                        Text("Jan 2025")
+                            .font(.title2)
                             .foregroundColor(.secondary)
                     }
                     
-                    // 日期格子
-                    ForEach(1...31, id: \.self) { day in
-                        if day <= calendar.range(of: .day, in: .month, for: selectedDate)?.count ?? 0 {
-                            DateCell(
-                                day: day,
-                                isSelected: calendar.component(.day, from: selectedDate) == day,
-                                hasEvent: [8, 9, 11].contains(day)
-                            )
-                        } else {
-                            Color.clear
-                                .frame(height: 40)
+                    Spacer()
+                    
+                    // 添加折叠按钮
+                    Button(action: {
+                        withAnimation(.easeInOut) {
+                            isCalendarExpanded.toggle()
                         }
+                    }) {
+                        Image(systemName: isCalendarExpanded ? "chevron.up" : "chevron.down")
+                            .foregroundColor(.blue)
+                            .padding(8)
+                            .background(Color(.systemGray6))
+                            .clipShape(Circle())
                     }
                 }
                 .padding(.horizontal)
+                
+                // 日历网格，添加条件渲染
+                if isCalendarExpanded {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 7), spacing: 8) {
+                        // 星期标题
+                        ForEach(["日", "一", "二", "三", "四", "五", "六"], id: \.self) { weekday in
+                            Text(weekday)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        // 日期格子
+                        ForEach(1...31, id: \.self) { day in
+                            if day <= calendar.range(of: .day, in: .month, for: selectedDate)?.count ?? 0 {
+                                DateCell(
+                                    day: day,
+                                    isSelected: calendar.component(.day, from: selectedDate) == day,
+                                    hasEvent: [8, 9, 11].contains(day)
+                                )
+                                .onTapGesture {
+                                    // 添加日期选择功能
+                                    if let newDate = calendar.date(bySetting: .day, value: day, of: selectedDate) {
+                                        withAnimation {
+                                            selectedDate = newDate
+                                        }
+                                    }
+                                }
+                            } else {
+                                Color.clear
+                                    .frame(height: 40)
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                }
                 
                 // 待办事项
                 VStack(alignment: .leading, spacing: 12) {
