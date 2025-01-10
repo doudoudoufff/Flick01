@@ -1,68 +1,81 @@
 import SwiftUI
 
-struct Task: Identifiable {
-    let id = UUID()
-    var title: String
-    var date: Date
-    var assignee: String
-    var status: TaskStatus
-}
-
-enum TaskStatus: String {
-    case inProgress = "进行中"
-    case completed = "已完成"
-    case pending = "待处理"
-}
-
 struct ProjectDetailView: View {
     @Environment(\.dismiss) private var dismiss
+    @StateObject private var taskManager = TaskManager()
     @Binding var project: Project
     @State private var isEditing = false
     @State private var isAddingTask = false
     @State private var editingTask: Task?
-    @State private var newTask = Task(
-        title: "",
-        date: Date(),
-        assignee: "",
-        status: .pending
-    )
-    @State private var tasks: [Task] = [
-        Task(
-            title: "前期筹备",
-            date: Date(),
-            assignee: "张三",
-            status: .inProgress
-        ),
-        Task(
-            title: "拍摄",
-            date: Date().addingTimeInterval(24*60*60),
-            assignee: "李四",
-            status: .inProgress
-        )
-    ]
     
-    private let dateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMM d, yyyy"
-        formatter.locale = Locale(identifier: "en_US")
-        return formatter
-    }()
-    
-    private var completedTasks: Int {
-        tasks.filter { $0.status == .completed }.count
+    private var projectProgress: (completed: Int, total: Int) {
+        let tasks = taskManager.tasksForProject(project.id)
+        let completed = tasks.filter { $0.status == .completed }.count
+        return (completed, tasks.count)
     }
     
     var body: some View {
-        ProjectDetailContent(
-            project: $project,
-            tasks: $tasks,
-            completedTasks: completedTasks,
-            dateFormatter: dateFormatter,
-            isEditing: $isEditing,
-            isAddingTask: $isAddingTask,
-            editingTask: $editingTask,
-            newTask: $newTask
-        )
+        ScrollView {
+            VStack(spacing: 24) {
+                // 项目信息卡片
+                VStack(spacing: 16) {
+                    Text("项目信息")
+                        .font(.headline)
+                    
+                    InfoRow(icon: "calendar", title: "开始时间", value: project.startDate.formatted(date: .long, time: .omitted))
+                    InfoRow(icon: "video.fill", title: "导演", value: project.director)
+                    InfoRow(icon: "person.2.fill", title: "制片", value: project.creator)
+                    InfoRow(icon: "person.3.fill", title: "监制", value: project.producer)
+                }
+                .padding()
+                .background(Color(.systemBackground))
+                .cornerRadius(12)
+                
+                // 进度卡片
+                VStack(spacing: 12) {
+                    HStack {
+                        Text("项目进度")
+                            .font(.headline)
+                        Spacer()
+                        Text("\(Int((Double(projectProgress.completed) / Double(max(projectProgress.total, 1))) * 100))%")
+                            .foregroundColor(.blue)
+                            .fontWeight(.semibold)
+                    }
+                    
+                    ProgressView(value: Double(projectProgress.completed), total: Double(max(projectProgress.total, 1)))
+                        .tint(project.color)
+                    
+                    HStack {
+                        Text("已完成 \(projectProgress.completed) 个任务")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text("共 \(projectProgress.total) 个任务")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .padding()
+                .background(Color(.systemBackground))
+                .cornerRadius(12)
+                
+                // 任务列表卡片
+                TaskListCard(
+                    tasks: taskManager.tasksForProject(project.id),
+                    onStatusToggle: { task in
+                        taskManager.updateTask(task)
+                    },
+                    onAddTask: { isAddingTask = true },
+                    onEditTask: { task in
+                        editingTask = task
+                    },
+                    onDeleteTask: { task in
+                        taskManager.deleteTask(task)
+                    }
+                )
+            }
+            .padding()
+        }
         .background(Color(.systemGray6))
         .navigationBarBackButtonHidden(true)
         .toolbar {
@@ -70,16 +83,17 @@ struct ProjectDetailView: View {
                 Button(action: { dismiss() }) {
                     HStack(spacing: 4) {
                         Image(systemName: "chevron.left")
-                            .foregroundColor(.blue)
                         Text("项目")
-                            .foregroundColor(.blue)
                     }
+                    .foregroundColor(.blue)
                 }
             }
+            
             ToolbarItem(placement: .principal) {
                 Text(project.name)
                     .font(.headline)
             }
+            
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button(action: { isEditing = true }) {
                     Image(systemName: "pencil")
@@ -87,157 +101,70 @@ struct ProjectDetailView: View {
                 }
             }
         }
+        .onAppear {
+            if taskManager.tasksForProject(project.id).isEmpty {
+                addTestTasks()
+            }
+        }
         .sheet(isPresented: $isEditing) {
-            ProjectEditView(project: $project)
+            NavigationView {
+                ProjectEditView(project: $project)
+            }
         }
         .sheet(isPresented: $isAddingTask) {
-            TaskEditView(task: $newTask, isNewTask: true)
-                .onDisappear {
-                    if !newTask.title.isEmpty {
-                        tasks.append(newTask)
-                    }
+            NavigationView {
+                TaskEditView(
+                    task: Task(
+                        title: "",
+                        date: Date(),
+                        assignee: "",
+                        status: .pending,
+                        projectId: project.id
+                    ),
+                    isNew: true
+                ) { task in
+                    taskManager.addTask(task)
                 }
+            }
         }
         .sheet(item: $editingTask) { task in
-            if let index = tasks.firstIndex(where: { $0.id == task.id }) {
-                TaskEditView(task: $tasks[index])
-            }
-        }
-    }
-}
-
-struct ProjectDetailContent: View {
-    @Binding var project: Project
-    @Binding var tasks: [Task]
-    let completedTasks: Int
-    let dateFormatter: DateFormatter
-    @Binding var isEditing: Bool
-    @Binding var isAddingTask: Bool
-    @Binding var editingTask: Task?
-    @Binding var newTask: Task
-    
-    var body: some View {
-        ScrollView {
-            VStack(spacing: 20) {
-                ProjectInfoCard(
-                    startDate: project.startDate,
-                    director: project.director,
-                    creator: project.creator,
-                    producer: project.producer,
-                    dateFormatter: dateFormatter
-                )
-                
-                ProjectProgressSection(
-                    completedTasks: completedTasks,
-                    totalTasks: tasks.count,
-                    projectColor: project.color
-                )
-                
-                TaskListSection(
-                    tasks: $tasks,
-                    editingTask: $editingTask,
-                    isAddingTask: $isAddingTask,
-                    newTask: $newTask
-                )
-            }
-            .padding(.vertical)
-        }
-    }
-}
-
-struct ProjectInfoCard: View {
-    let startDate: Date
-    let director: String
-    let creator: String
-    let producer: String
-    let dateFormatter: DateFormatter
-    
-    var body: some View {
-        VStack(spacing: 16) {
-            InfoRow(icon: "calendar", title: "开始时间", value: dateFormatter.string(from: startDate))
-            InfoRow(icon: "video.fill", title: "导演", value: director)
-            InfoRow(icon: "person.2.fill", title: "制片", value: creator)
-            InfoRow(icon: "person.3.fill", title: "监制", value: producer)
-        }
-        .padding()
-        .background(Color(.systemBackground))
-        .cornerRadius(12)
-        .padding(.horizontal)
-    }
-}
-
-struct ProjectProgressSection: View {
-    let completedTasks: Int
-    let totalTasks: Int
-    let projectColor: Color
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("项目进度")
-                .font(.headline)
-                .padding(.horizontal)
-            
-            VStack(alignment: .leading) {
-                HStack {
-                    Text("\(Int((Float(completedTasks) / Float(totalTasks)) * 100))%")
-                    Spacer()
-                    Text("\(completedTasks)/\(totalTasks) 任务")
+            NavigationView {
+                TaskEditView(
+                    task: task,
+                    isNew: false
+                ) { updatedTask in
+                    taskManager.updateTask(updatedTask)
                 }
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                
-                ProgressView(value: Float(completedTasks) / Float(totalTasks))
-                    .tint(projectColor)
             }
-            .padding()
-            .background(Color(.systemBackground))
-            .cornerRadius(12)
         }
-        .padding(.horizontal)
     }
-}
-
-struct TaskListSection: View {
-    @Binding var tasks: [Task]
-    @Binding var editingTask: Task?
-    @Binding var isAddingTask: Bool
-    @Binding var newTask: Task
     
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("任务列表")
-                .font(.headline)
-                .padding(.horizontal)
-            
-            ForEach($tasks) { $task in
-                TaskRow(task: $task)
-                    .onTapGesture {
-                        editingTask = task
-                    }
-            }
-            
-            Button(action: {
-                newTask = Task(
-                    title: "",
-                    date: Date(),
-                    assignee: "",
-                    status: .pending
-                )
-                isAddingTask = true
-            }) {
-                HStack {
-                    Image(systemName: "plus.circle.fill")
-                        .foregroundColor(.blue)
-                    Text("添加任务")
-                        .foregroundColor(.blue)
-                }
-                .padding()
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(.systemBackground))
-                .cornerRadius(12)
-            }
-        }
-        .padding(.horizontal)
+    private func addTestTasks() {
+        let testTasks = [
+            Task(
+                title: "前期筹备",
+                date: Date(),
+                assignee: "张三",
+                status: .completed,
+                projectId: project.id
+            ),
+            Task(
+                title: "场地勘察",
+                date: Date().addingTimeInterval(86400),
+                assignee: "李四",
+                status: .pending,
+                projectId: project.id
+            ),
+            Task(
+                title: "拍摄计划制定",
+                date: Date().addingTimeInterval(86400 * 2),
+                assignee: "王五",
+                status: .pending,
+                projectId: project.id
+            )
+        ]
+        
+        testTasks.forEach { taskManager.addTask($0) }
     }
 }
 
@@ -260,83 +187,166 @@ struct InfoRow: View {
 }
 
 struct TaskRow: View {
-    @Binding var task: Task
+    let task: Task
+    let onStatusToggle: (Task) -> Void
+    @State private var isCompleted: Bool
+    
+    init(task: Task, onStatusToggle: @escaping (Task) -> Void) {
+        self.task = task
+        self.onStatusToggle = onStatusToggle
+        _isCompleted = State(initialValue: task.status == .completed)
+    }
     
     var body: some View {
-        VStack(spacing: 12) {
-            HStack {
-                // 任务状态切换
-                Button(action: toggleTaskStatus) {
-                    Circle()
-                        .strokeBorder(Color.gray, lineWidth: 1.5)
-                        .frame(width: 24, height: 24)
-                        .overlay(
-                            Group {
-                                if task.status == .completed {
-                                    Image(systemName: "checkmark")
-                                        .foregroundColor(.blue)
-                                }
-                            }
-                        )
+        VStack(spacing: 0) {
+            HStack(spacing: 16) {
+                // 左侧开关
+                Toggle("", isOn: Binding(
+                    get: { isCompleted },
+                    set: { newValue in
+                        withAnimation {
+                            isCompleted = newValue
+                            var updatedTask = task
+                            updatedTask.status = newValue ? .completed : .pending
+                            onStatusToggle(updatedTask)
+                        }
+                    }
+                ))
+                .toggleStyle(SwitchToggleStyle(tint: .green))
+                .scaleEffect(0.8)
+                .labelsHidden()
+                
+                // 中间任务信息
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(task.title)
+                        .font(.system(size: 17, weight: .regular))
+                        .foregroundColor(isCompleted ? .secondary : .primary)
+                    
+                    HStack(spacing: 16) {
+                        // 日期
+                        HStack(spacing: 4) {
+                            Image(systemName: "calendar")
+                                .font(.system(size: 13))
+                            Text(task.date.formatted(.dateTime.year().month().day()))
+                                .font(.system(size: 13))
+                        }
+                        
+                        // 负责人
+                        HStack(spacing: 4) {
+                            Image(systemName: "person")
+                                .font(.system(size: 13))
+                            Text(task.assignee)
+                                .font(.system(size: 13))
+                        }
+                    }
+                    .foregroundColor(.secondary)
                 }
                 
-                Text(task.title)
-                    .font(.headline)
-                
                 Spacer()
                 
-                Text(task.status.rawValue)
-                    .font(.caption)
-                    .foregroundColor(statusColor)
+                // 右侧状态标签
+                Text(isCompleted ? "已完成" : "未完成")
+                    .font(.system(size: 13))
+                    .foregroundColor(isCompleted ? .green : .orange)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
-                    .background(statusColor.opacity(0.1))
-                    .cornerRadius(4)
+                    .background(
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(isCompleted ? Color.green.opacity(0.1) : Color.orange.opacity(0.1))
+                    )
             }
-            
+            .padding(.vertical, 16)
+            .padding(.horizontal, 20)
+        }
+    }
+}
+
+struct SwipeableTaskRow: View {
+    let task: Task
+    let onStatusToggle: (Task) -> Void
+    let onEdit: (Task) -> Void
+    let onDelete: (Task) -> Void
+    
+    var body: some View {
+        TaskRow(task: task, onStatusToggle: onStatusToggle)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 20)
+                    .onEnded { value in
+                        if value.translation.width < -50 {
+                            // 显示操作按钮
+                        }
+                    }
+            )
+            .contextMenu {
+                Button(role: .destructive) {
+                    withAnimation {
+                        onDelete(task)
+                    }
+                } label: {
+                    Label("删除", systemImage: "trash")
+                }
+                
+                Button {
+                    onEdit(task)
+                } label: {
+                    Label("编辑", systemImage: "pencil")
+                }
+            }
+    }
+}
+
+struct TaskListCard: View {
+    let tasks: [Task]
+    let onStatusToggle: (Task) -> Void
+    let onAddTask: () -> Void
+    let onEditTask: (Task) -> Void
+    let onDeleteTask: (Task) -> Void
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // 标题和添加按钮
             HStack {
-                Image(systemName: "calendar")
-                    .foregroundColor(.gray)
-                Text(task.date, style: .date)
-                    .font(.subheadline)
-                    .foregroundColor(.gray)
-                
+                Text("任务列表")
+                    .font(.system(size: 17, weight: .medium))
                 Spacer()
-                
-                Image(systemName: "person")
-                    .foregroundColor(.gray)
-                Text(task.assignee)
-                    .font(.subheadline)
-                    .foregroundColor(.gray)
+                Button(action: onAddTask) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundColor(.blue)
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 16)
+            
+            if tasks.isEmpty {
+                // 空状态
+                VStack(spacing: 12) {
+                    Image(systemName: "checklist")
+                        .font(.system(size: 40))
+                        .foregroundColor(.gray)
+                    Text("暂无任务")
+                        .font(.system(size: 15))
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 40)
+            } else {
+                // 任务列表
+                VStack(spacing: 0) {
+                    ForEach(tasks) { task in
+                        SwipeableTaskRow(task: task, onStatusToggle: onStatusToggle, onEdit: onEditTask, onDelete: onDeleteTask)
+                        
+                        if task.id != tasks.last?.id {
+                            Divider()
+                                .padding(.horizontal, 20)
+                        }
+                    }
+                }
             }
         }
-        .padding()
         .background(Color(.systemBackground))
-        .cornerRadius(12)
-    }
-    
-    private var statusColor: Color {
-        switch task.status {
-        case .pending:
-            return .gray
-        case .inProgress:
-            return .orange
-        case .completed:
-            return .green
-        }
-    }
-    
-    private func toggleTaskStatus() {
-        withAnimation {
-            switch task.status {
-            case .pending:
-                task.status = .inProgress
-            case .inProgress:
-                task.status = .completed
-            case .completed:
-                task.status = .pending
-            }
-        }
+        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 }
 

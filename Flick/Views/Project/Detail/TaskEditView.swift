@@ -2,82 +2,63 @@ import SwiftUI
 
 struct TaskEditView: View {
     @Environment(\.dismiss) private var dismiss
-    @Binding var task: Task
-    let isNewTask: Bool
+    @State private var editedTask: Task
+    let isNew: Bool
+    let onSave: (Task) -> Void
     
-    @State private var editedTitle: String
-    @State private var editedDate: Date
-    @State private var editedAssignee: String
-    @State private var editedStatus: TaskStatus
-    
-    init(task: Binding<Task>, isNewTask: Bool = false) {
-        self._task = task
-        self.isNewTask = isNewTask
-        _editedTitle = State(initialValue: task.wrappedValue.title)
-        _editedDate = State(initialValue: task.wrappedValue.date)
-        _editedAssignee = State(initialValue: task.wrappedValue.assignee)
-        _editedStatus = State(initialValue: task.wrappedValue.status)
+    init(task: Task, isNew: Bool, onSave: @escaping (Task) -> Void) {
+        _editedTask = State(initialValue: task)
+        self.isNew = isNew
+        self.onSave = onSave
     }
     
     var body: some View {
-        NavigationView {
-            Form {
-                Section(header: Text("任务信息")) {
-                    TextField("任务名称", text: $editedTitle)
-                    DatePicker("截止日期", selection: $editedDate, displayedComponents: .date)
-                }
-                
-                Section(header: Text("负责人")) {
-                    HStack {
-                        Image(systemName: "person.fill")
-                            .foregroundColor(.blue)
-                            .frame(width: 24)
-                        TextField("负责人", text: $editedAssignee)
-                    }
-                }
-                
-                Section(header: Text("状态")) {
-                    Picker("任务状态", selection: $editedStatus) {
-                        Text("待处理").tag(TaskStatus.pending)
-                        Text("进行中").tag(TaskStatus.inProgress)
-                        Text("已完成").tag(TaskStatus.completed)
+        Form {
+            Section("任务信息") {
+                TextField("任务名称", text: $editedTask.title)
+                DatePicker("截止日期", selection: $editedTask.date, displayedComponents: .date)
+                TextField("负责人", text: $editedTask.assignee)
+            }
+            
+            if !isNew {
+                Section("状态") {
+                    Picker("任务状态", selection: $editedTask.status) {
+                        ForEach(TaskStatus.allCases, id: \.self) { status in
+                            Text(status.rawValue).tag(status)
+                        }
                     }
                     .pickerStyle(.segmented)
                 }
             }
-            .navigationTitle(isNewTask ? "新建任务" : "编辑任务")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("取消") {
-                        dismiss()
-                    }
-                }
-                
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(isNewTask ? "创建" : "保存") {
-                        saveChanges()
-                        dismiss()
-                    }
-                    .disabled(editedTitle.isEmpty)
+        }
+        .navigationTitle(isNew ? "新建任务" : "编辑任务")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button("取消") {
+                    dismiss()
                 }
             }
+            
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(isNew ? "创建" : "保存") {
+                    onSave(editedTask)
+                    dismiss()
+                }
+                .disabled(editedTask.title.isEmpty)
+            }
         }
-    }
-    
-    private func saveChanges() {
-        task.title = editedTitle
-        task.date = editedDate
-        task.assignee = editedAssignee
-        task.status = editedStatus
     }
 }
 
 #Preview {
-    TaskEditView(task: .constant(Task(
+    TaskEditView(task: Task(
         title: "前期筹备",
         date: Date(),
         assignee: "张三",
-        status: .inProgress
-    )))
+        status: .pending,
+        projectId: UUID()
+    ), isNew: true) { task in
+        // This closure is called when the task is saved
+    }
 } 
