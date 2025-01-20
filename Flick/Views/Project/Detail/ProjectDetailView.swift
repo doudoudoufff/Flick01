@@ -3,6 +3,7 @@ import SwiftUI
 struct ProjectDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var taskManager = TaskManager()
+    @StateObject private var projectManager = ProjectManager.shared
     @Binding var project: Project
     @State private var isEditing = false
     @State private var isAddingTask = false
@@ -77,18 +78,8 @@ struct ProjectDetailView: View {
             .padding()
         }
         .background(Color(.systemGray6))
-        .navigationBarBackButtonHidden(true)
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .navigationBarLeading) {
-                Button(action: { dismiss() }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "chevron.left")
-                        Text("项目")
-                    }
-                    .foregroundColor(.blue)
-                }
-            }
-            
             ToolbarItem(placement: .principal) {
                 Text(project.name)
                     .font(.headline)
@@ -109,6 +100,11 @@ struct ProjectDetailView: View {
         .sheet(isPresented: $isEditing) {
             NavigationView {
                 ProjectEditView(project: $project)
+                    .onDisappear {
+                        if let updatedProject = projectManager.projects.first(where: { $0.id == project.id }) {
+                            project = updatedProject
+                        }
+                    }
             }
         }
         .sheet(isPresented: $isAddingTask) {

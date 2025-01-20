@@ -27,6 +27,21 @@ struct ContentView: View {
                     }
             }
         }
+        .navigationViewStyle(.stack)
+        .gesture(DragGesture().onEnded { gesture in
+            if gesture.translation.width > 100 {
+                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), 
+                                             to: nil, 
+                                             from: nil, 
+                                             for: nil)
+                
+                let scenes = UIApplication.shared.connectedScenes
+                let windowScene = scenes.first as? UIWindowScene
+                let window = windowScene?.windows.first
+                let rootViewController = window?.rootViewController
+                rootViewController?.navigationController?.popViewController(animated: true)
+            }
+        })
     }
 }
 

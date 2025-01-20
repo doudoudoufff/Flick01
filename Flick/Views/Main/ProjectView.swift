@@ -5,6 +5,7 @@ struct ProjectView: View {
     @State private var searchText = ""
     @State private var selectedProject: Project?
     @State private var showNewProject = false
+    @State private var refreshID = UUID()
     
     private let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -73,6 +74,7 @@ struct ProjectView: View {
                 }
             }
         }
+        .id(refreshID)
         .navigationBarHidden(true)
         .sheet(isPresented: $showNewProject) {
             NewProjectView()
@@ -87,6 +89,10 @@ struct ProjectView: View {
                     }
                 )
             )
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ProjectUpdated"))) { _ in
+            // 通过更新 ID 来强制视图刷新
+            refreshID = UUID()
         }
     }
 }

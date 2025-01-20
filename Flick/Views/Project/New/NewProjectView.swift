@@ -2,6 +2,7 @@ import SwiftUI
 
 struct NewProjectView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.presentationMode) var presentationMode
     @StateObject private var projectManager = ProjectManager.shared
     
     @State private var projectName = ""
@@ -60,6 +61,13 @@ struct NewProjectView: View {
                     .disabled(projectName.isEmpty)
                 }
             }
+            .navigationBarBackButtonHidden(false)
+            .interactiveDismissDisabled(false)
+            .gesture(DragGesture().onEnded { gesture in
+                if gesture.translation.width > 100 {
+                    presentationMode.wrappedValue.dismiss()
+                }
+            })
         }
     }
     
