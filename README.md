@@ -28,3 +28,30 @@ Flick 是一个专门为影视项目管理设计的 iOS 应用，使用 SwiftUI 
 - iOS 16.0+
 
 ## 项目结构 
+Flick/
+├── Models/
+│ ├── Core/
+│ │ ├── Project.swift
+│ │ └── Task.swift
+│ └── Enums/
+│ └── TaskStatus.swift
+├── ViewModels/
+│ └── Managers/
+│ ├── ProjectManager.swift
+│ └── TaskManager.swift
+├── Views/
+│ ├── Main/
+│ │ ├── ContentView.swift
+│ │ ├── OverviewView.swift
+│ │ ├── ProjectView.swift
+│ │ └── SettingsView.swift
+│ └── Project/
+│ ├── Detail/
+│ │ ├── ProjectDetailView.swift
+│ │ └── TaskEditView.swift
+│ ├── Edit/
+│ │ └── ProjectEditView.swift
+│ └── New/
+│ └── NewProjectView.swift
+└── FlickApp.swift
+
