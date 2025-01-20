@@ -9,26 +9,22 @@ import SwiftUI
 
 struct ContentView: View {
     var body: some View {
-        TabView {
-            NavigationView {
+        NavigationStack {
+            TabView {
                 OverviewView()
-            }
-            .tabItem {
-                Label("总览", systemImage: "house.fill")
-            }
-            
-            NavigationView {
+                    .tabItem {
+                        Label("总览", systemImage: "house.fill")
+                    }
+                
                 ProjectView()
-            }
-            .tabItem {
-                Label("项目", systemImage: "list.bullet")
-            }
-            
-            NavigationView {
+                    .tabItem {
+                        Label("项目", systemImage: "list.bullet")
+                    }
+                
                 SettingsView()
-            }
-            .tabItem {
-                Label("设置", systemImage: "gearshape.fill")
+                    .tabItem {
+                        Label("设置", systemImage: "gearshape.fill")
+                    }
             }
         }
     }

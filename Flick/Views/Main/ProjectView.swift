@@ -1,42 +1,10 @@
 import SwiftUI
 
-struct Project: Identifiable {
-    let id = UUID()
-    var name: String
-    var startDate: Date
-    var director: String
-    var creator: String
-    var producer: String
-    var color: Color
-    var completedTasks: Int
-    var totalTasks: Int
-}
-
 struct ProjectView: View {
+    @StateObject private var projectManager = ProjectManager.shared
     @State private var searchText = ""
     @State private var selectedProject: Project?
-    @State private var projects: [Project] = [
-        Project(
-            name: "蒙牛 TVC",
-            startDate: Date(),
-            director: "王五",
-            creator: "赵六",
-            producer: "钱七",
-            color: .blue,
-            completedTasks: 0,
-            totalTasks: 2
-        ),
-        Project(
-            name: "流浪地球",
-            startDate: Date(),
-            director: "郭帆",
-            creator: "王红卫",
-            producer: "刘慈欣",
-            color: .red,
-            completedTasks: 0,
-            totalTasks: 2
-        )
-    ]
+    @State private var showNewProject = false
     
     private let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -46,7 +14,26 @@ struct ProjectView: View {
     }()
     
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(alignment: .leading, spacing: 0) {
+            // 标题和添加按钮
+            HStack {
+                Text("项目")
+                    .font(.largeTitle)
+                    .bold()
+                
+                Spacer()
+                
+                Button {
+                    showNewProject = true
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.title2)
+                        .foregroundColor(.blue)
+                }
+            }
+            .padding(.horizontal)
+            .padding(.bottom, 8)
+            
             // 搜索栏
             HStack {
                 Image(systemName: "magnifyingglass")
@@ -58,58 +45,60 @@ struct ProjectView: View {
             .cornerRadius(8)
             .padding()
             
-            // 项目列表
-            ScrollView {
-                LazyVStack(spacing: 12) {
-                    ForEach($projects) { $project in
-                        ProjectCard(project: project, dateFormatter: dateFormatter)
-                            .onTapGesture {
-                                withAnimation(.easeInOut) {
+            if projectManager.projects.isEmpty {
+                // 空状态视图
+                VStack(spacing: 16) {
+                    Image(systemName: "folder.badge.plus")
+                        .font(.system(size: 64))
+                        .foregroundColor(.gray)
+                    Text("还没有项目")
+                        .font(.headline)
+                    Text("点击右上角的加号创建新项目")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxHeight: .infinity)
+            } else {
+                // 项目列表
+                ScrollView {
+                    LazyVStack(spacing: 12) {
+                        ForEach(projectManager.projects) { project in
+                            ProjectCard(project: project, dateFormatter: dateFormatter)
+                                .onTapGesture {
                                     selectedProject = project
                                 }
-                            }
+                        }
                     }
-                }
-                .padding(.horizontal)
-            }
-        }
-        .navigationTitle("项目")
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button(action: {}) {
-                    Image(systemName: "plus")
-                        .foregroundColor(.blue)
+                    .padding(.horizontal)
                 }
             }
         }
-        .background(
-            NavigationLink(
-                destination: ProjectDetailView(
-                    project: selectedProject.map { project in
-                        Binding(
-                            get: { project },
-                            set: { newValue in
-                                if let index = projects.firstIndex(where: { $0.id == project.id }) {
-                                    projects[index] = newValue
-                                }
-                            }
-                        )
-                    } ?? .constant(projects[0])
-                ),
-                isActive: Binding(
-                    get: { selectedProject != nil },
-                    set: { if !$0 { selectedProject = nil } }
+        .navigationBarHidden(true)
+        .sheet(isPresented: $showNewProject) {
+            NewProjectView()
+        }
+        .navigationDestination(item: $selectedProject) { project in
+            ProjectDetailView(
+                project: Binding(
+                    get: { project },
+                    set: { newValue in
+                        projectManager.updateProject(newValue)
+                        selectedProject = newValue
+                    }
                 )
-            ) {
-                EmptyView()
-            }
-        )
+            )
+        }
     }
 }
 
 struct ProjectCard: View {
     let project: Project
     let dateFormatter: DateFormatter
+    
+    private var progressPercentage: Int {
+        guard project.totalTasks > 0 else { return 0 }
+        return Int((Double(project.completedTasks) / Double(project.totalTasks)) * 100)
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -121,7 +110,7 @@ struct ProjectCard: View {
                 Text(project.name)
                     .font(.headline)
                 Spacer()
-                Text("\(Int((Float(project.completedTasks) / Float(project.totalTasks)) * 100))%")
+                Text("\(progressPercentage)%")
                     .font(.subheadline)
                     .foregroundColor(project.color)
                     .padding(.horizontal, 8)
